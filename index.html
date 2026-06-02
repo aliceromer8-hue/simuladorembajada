@@ -1186,21 +1186,18 @@ function dlSecondJob() {
 
 <script>
 // ═══════════════════════════════════════════════════════
-// ACCESS GATE — Opción A: lista hardcodeada de emails
-// Para agregar un email: añadirlo al array ALLOWED_EMAILS
-// y redesplegar en Netlify
+// ACCESS GATE
 // ═══════════════════════════════════════════════════════
 
-// ▼▼▼ AGREGA EMAILS AQUÍ — uno por línea entre comillas ▼▼▼
+// AGREGA EMAILS AQUI:
 const ALLOWED_EMAILS = [
-  // TUS COMPRADORES:
   "alice.romer8@gmail.com",
 ];
-// ▲▲▲ FIN DE LA LISTA ▲▲▲
 
-// Hash simple (djb2) para no exponer los emails en texto plano
-function hashEmail(email) {
-  const s = email.toLowerCase().trim();
+const STORAGE_KEY = 'nv3_access_v2';
+
+function hashEmail(e) {
+  const s = e.toLowerCase().trim();
   let h = 5381;
   for (let i = 0; i < s.length; i++) {
     h = ((h << 5) + h) + s.charCodeAt(i);
@@ -1209,41 +1206,44 @@ function hashEmail(email) {
   return h.toString(16);
 }
 
-// Pre-hash the allowed list at runtime so raw emails aren't easily scraped
 const ALLOWED_HASHES = new Set(ALLOWED_EMAILS.map(hashEmail));
 
-// Check if already unlocked (persists across refreshes)
-const STORAGE_KEY = 'nv3_access';
+function unlockGate() {
+  const gate = document.getElementById('gate');
+  if (gate) { gate.style.display = 'none'; }
+  document.body.style.overflow = '';
+}
+
+function lockGate() {
+  const gate = document.getElementById('gate');
+  if (gate) { gate.style.display = 'flex'; }
+  document.body.style.overflow = 'hidden';
+}
 
 function gateCheck() {
   const input = document.getElementById('gateInput');
   const btn   = document.getElementById('gateBtn');
   const err   = document.getElementById('gateError');
+  if (!input) return;
   const email = input.value.trim().toLowerCase();
-
   if (!email || !email.includes('@')) {
     input.classList.add('error');
-    err.textContent = '⚠️ Ingresa un email válido.';
+    err.textContent = 'Ingresa un email valido.';
     err.classList.add('show');
     return;
   }
-
   btn.disabled = true;
   btn.textContent = 'Verificando...';
   input.classList.remove('error');
   err.classList.remove('show');
-
-  // Small delay for UX
-  setTimeout(() => {
-    if (ALLOWED_HASHES.has(hashEmail(email))) {
-      // ✅ Autorizado
-      localStorage.setItem(STORAGE_KEY, hashEmail(email));
-      document.getElementById('gate').classList.add('hidden');
-      document.body.style.overflow = '';
+  setTimeout(function() {
+    var h = hashEmail(email);
+    if (ALLOWED_HASHES.has(h)) {
+      try { localStorage.setItem(STORAGE_KEY, h); } catch(ex) {}
+      unlockGate();
     } else {
-      // ❌ No autorizado
       input.classList.add('error');
-      err.textContent = '❌ Ese email no está en nuestra lista. Verifica que sea el mismo con el que compraste. Si acabas de comprar, espera unos minutos.';
+      err.textContent = 'Ese email no esta en nuestra lista. Verifica que sea el mismo con el que compraste en Hotmart.';
       err.classList.add('show');
       btn.disabled = false;
       btn.textContent = 'Acceder al simulador →';
@@ -1251,17 +1251,26 @@ function gateCheck() {
   }, 600);
 }
 
-// On load: check if already unlocked
-(function checkAccess() {
-  const saved = localStorage.getItem(STORAGE_KEY);
+function initGate() {
+  // Clear any old storage keys from previous versions
+  try {
+    localStorage.removeItem('nv3_access');
+  } catch(ex) {}
+  var saved = null;
+  try { saved = localStorage.getItem(STORAGE_KEY); } catch(ex) {}
   if (saved && ALLOWED_HASHES.has(saved)) {
-    document.getElementById('gate').classList.add('hidden');
-    document.body.style.overflow = '';
+    unlockGate();
   } else {
-    // Prevent scrolling while gate is visible
-    document.body.style.overflow = 'hidden';
+    lockGate();
   }
-})();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initGate);
+} else {
+  initGate();
+}
+
 </script>
 
 </body>
